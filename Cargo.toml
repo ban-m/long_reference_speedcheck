@@ -1,0 +1,15 @@
+[package]
+name = "long_reference_speedcheck"
+version = "0.1.0"
+authors = ["ban-m <ban-m@g.ecc.u-tokyo.ac.jp>"]
+
+[dependencies]
+dtw = {path = "../dtw"}
+squiggler = {path = "../squiggler"}
+fast5wrapper = {path = "../fast5wrapper"}
+bio = "*"
+rand = "*"
+rayon = "*"
+csv = "1.0.0-beta.5"
+histogram_minimizer = {path ="../histogram_minimizer"}
+
