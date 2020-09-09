@@ -1,55 +1,71 @@
-extern crate rayon;
-extern crate bio;
-extern crate fast5wrapper;
-extern crate dtw;
-extern crate squiggler;
-extern crate rand;
+use long_reference_speedcheck::*;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::path::Path;
-mod utils;
-const IS_HILL:bool = false;
-use utils::*;
+const IS_HILL: bool = false;
 fn main() {
-    let args:Vec<_> = std::env::args().collect();
-    let queries:Vec<_> = BufReader::new(File::open(&Path::new(&args[1])).unwrap())
-        .lines().filter_map(|e|e.ok())
-        .filter_map(|e|{
-            let content:Vec<_> =  e.split(',').collect();
-            let filename = content[0].to_string();
-            let location = content[1].parse::<usize>().unwrap();
-            Some((filename,location))
+    let args: Vec<_> = std::env::args().collect();
+    let sam: HashMap<_, _> = BufReader::new(File::open(&args[1]).unwrap())
+        .lines()
+        .filter_map(|e| e.ok())
+        .filter(|line| !line.starts_with('@'))
+        .filter_map(|line| {
+            let contents: Vec<_> = line.split('\t').take(4).collect();
+            let id: String = contents[0].split('_').nth(0).unwrap().to_string();
+            let flag: usize = contents[1].parse().unwrap();
+            let pos: usize = contents[3].parse().unwrap();
+            if flag == 0 {
+                Some((id, pos))
+            } else {
+                None
+            }
         })
-        .filter_map(|(filename,location)|
-                    match prepare_query(&filename){
-                        Ok(res) => Some((res,location)),
-                        Err(_) => None,
-                    })
+        .collect();
+    let queries = DataSet::from_json(&args[2]).unwrap();
+    let queries: Vec<_> = queries
+        .records
+        .into_iter()
+        .filter_map(|data| sam.get(&data.id).map(|&pos| (data.means, pos)))
         .take(700)
         .collect();
-    let model = squiggler::Squiggler::new(&Path::new(&args[2])).unwrap();
-    let (temp,rev) = setup_template_complement(&Path::new(&args[3])).unwrap();
-    let temp:Vec<f32> = model.get_signal_from_fasta(&temp).into_iter().map(|e|e.2).collect();
-    let temp = dtw::normalize(&temp,dtw::NormalizeType::Z);
-    let rev :Vec<_> = model.get_signal_from_fasta(&rev)
-        .into_iter().map(|e|e.2).collect();
-    let _rev = dtw::normalize(&rev,dtw::NormalizeType::Z);
-    let refsizes :Vec<_>= args[4].split(',').filter_map(|e|e.parse::<usize>().ok())
-        .map(|e|e*1000).collect();
-    let querysize:usize =  args[5].parse().expect("querysize");
+    let model = squiggler::Squiggler::new(&Path::new(&args[3])).unwrap();
+    let (temp, rev) = setup_template_complement(&Path::new(&args[4])).unwrap();
+    let temp: Vec<f32> = model
+        .get_signal_from_fasta(&temp)
+        .into_iter()
+        .map(|e| e.2)
+        .collect();
+    let temp = dtw::normalize(&temp, dtw::NormalizeType::Z);
+    let rev: Vec<_> = model
+        .get_signal_from_fasta(&rev)
+        .into_iter()
+        .map(|e| e.2)
+        .collect();
+    let _rev = dtw::normalize(&rev, dtw::NormalizeType::Z);
+    let refsizes: Vec<_> = args[5]
+        .split(',')
+        .filter_map(|e| e.parse::<usize>().ok())
+        .map(|e| e * 1000)
+        .collect();
+    let querysize: usize = args[6].parse().expect("querysize");
     // add power when running fixed refsize
     println!("refsize,time,power");
     let mode = dtw::Mode::Sub;
-    for refsize in refsizes{
+    for refsize in refsizes {
         let power = 0.0;
-        let result = speedcheck(&queries,&temp,querysize,refsize,power,mode.clone(),
-                                IS_HILL,&None);
+        let result = speedcheck(
+            &queries,
+            &temp,
+            querysize,
+            refsize,
+            power,
+            mode.clone(),
+            IS_HILL,
+            &None,
+        );
         // add one culumn when runnning fixed refsize
-        println!("{},{},{}",
-                 refsize,
-                 result,
-                 power);
+        println!("{},{},{}", refsize, result, power);
     }
 }
-

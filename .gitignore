@@ -6,3 +6,4 @@ target/
 .*
 !.gitignore
 data/
+kmer_models/

@@ -1,29 +1,69 @@
 #!/bin/bash
 
-# This is a local runner for generating data for figure in paper.
-# Note that you should correctly put the data on previous to run this script.
-
-# Constant settings.
+## This is a local runner for generating data for figure in paper.
+DATA=${PWD}/data
 WO_CHUNKING_QUERYSIZE=500
 QUERY_SIZE=250
-ECOLIREF=/media/ban-m/hdd/linux-folder/readuntils/data/ecolik12.fa
-MODELPATH=/media/ban-m/hdd/linux-folder/readuntils/kmer_models/r9.2_180mv_250bps_6mer/template_median68pA.model
-QUERIES=/data/speedcheck/
+
+## Download the reference
+ECOLIREF=${DATA}/EColi_k12.fasta
+if ! [ -e ${ECOLIREF} ]
+then
+    wget http://togows.dbcls.jp/entry/nucleotide/U00096.3.fasta -O ${ECOLIREF}
+fi
 REFERENCE_SIZE=200
-TRAINING_DATA_ROOT="./data/200KScouting"
+
+## Donwload models.
+if ! [ -d ${PWD}/kmer_models ]
+then
+    git clone https://github.com/nanoporetech/kmer_models.git
+fi
+MODELPATH=${PWD}/kmer_models/r9.2_180mv_250bps_6mer/template_median68pA.model
+
+
+## Download signal data
+## These are events extracted by Python script named `${PWD}/../score_calculate/scripts/extract.py`.
+## It is obtained by
+## ```bash
+## wget https://s3.climb.ac.uk/nanopore/E_coli_K12_1D_R9.2_SpotON_2.tgz
+## tar -xvf E_coli_K12_1D_R9.2_SpotON_2.tgz
+## python3 ${PWD}/../score_calculate/scripts/extract.py \ 
+## ${PWD}/E_coli_K12_1D_R9.2_SpotON_2/downloads/pass/ 1000 100000 ${QUERIES}/events.json
+## ```
+## It requires ONT's fast5 API packages.
+QUERY=${DATA}/events.json
+if ! [ -e ${QUERY} ]
+then
+    wget https://mlab.cb.k.u-tokyo.ac.jp/~ban-m/read_until_paper/events.json.gz -O ${QUERY}.gz
+    gunzip ${QUERY}.gz
+fi
+
+## Download reads and SAM File. Mapping from query reads -> ECOLIREF.
+READS=${DATA}/query.fasta
+SAM=${DATA}/mapping.sam
+if ! [ -e ${READS} ]
+then
+    wget https://s3.climb.ac.uk/nanopore/E_coli_K12_1D_R9.2_SpotON_2.pass.fasta -O ${READS}
+fi
+if ! [ -e ${SAM} ]
+then
+    minimap2 -a -x map-ont ${ECOLIREF} ${READS} > ${SAM}
+fi
+
 
 set -eu
-
 ### baseline implimentation
 ### Baseline(Sub dynamic time warping without chunking)
 echo "refsize,bandwidth,time,power" > result_local/baseline_sub_without_chunking.csv
-cargo run --release --bin speedcheck  -- $QUERIES $MODELPATH $ECOLIREF $REFERENCE_SIZE $WO_CHUNKING_QUERYSIZE 0 0 >> result_local/baseline_sub_without_chunking.csv 2> log
+cargo run --release --bin speedcheck  -- $SAM $QUERY $MODELPATH $ECOLIREF $REFERENCE_SIZE $WO_CHUNKING_QUERYSIZE 0 0 \
+      >> result_local/baseline_sub_without_chunking.csv 2> log
 
 ### Baseline(Sub dynamic time warping with chunking)
 echo "refsize,bandwidth,time,power" > result_local/baseline_sub_with_chunking.csv
 for power in $(seq 35 1 40)
 do
-    cargo run --release --bin speedcheck $QUERIES $MODELPATH $ECOLIREF $REFERENCE_SIZE $QUERY_SIZE 0 ${power} >> result_local/baseline_sub_with_chunking.csv 2> log 
+    cargo run --release --bin speedcheck -- ${SAM} $QUERY $MODELPATH $ECOLIREF $REFERENCE_SIZE $QUERY_SIZE \
+          0 ${power} >> result_local/baseline_sub_with_chunking.csv 2> log 
 done
 
 
@@ -34,8 +74,8 @@ do
     for num_scouts in $(seq 14 2 20)
     do
 	    for power in $(seq 35 1 38)
-	    do
-	        cargo run --release  --bin sub_scouting $QUERIES $MODELPATH $ECOLIREF $REFERENCE_SIZE $QUERY_SIZE ${num_scouts} ${num_packs} ${power} >> result_local/baseline_scouting_with_chunking.csv 2> log
+        do
+	        cargo run --release  --bin sub_scouting -- $SAM $QUERY $MODELPATH $ECOLIREF $REFERENCE_SIZE $QUERY_SIZE ${num_scouts} ${num_packs} ${power} >> result_local/baseline_scouting_with_chunking.csv 2> log
 	    done
     done
 done
@@ -49,7 +89,7 @@ do
     do
 	    for power in $(seq 35 1 38)
 	    do
-	        cargo run --release --bin scouting_threshold -- $QUERIES $MODELPATH $ECOLIREF $REFERENCE_SIZE $QUERY_SIZE ${num_scouts} ${num_packs} ${power} ${TRAINING_DATA_ROOT}${num_scouts}${num_packs}${power}Positive.dat ${TRAINING_DATA_ROOT}${num_scouts}${num_packs}${power}Negative.dat >> result_local/proposed.csv 2>> log 
+	        cargo run --release --bin scouting_threshold -- $SAM $QUERY $MODELPATH $ECOLIREF $REFERENCE_SIZE $QUERY_SIZE ${num_scouts} ${num_packs} ${power} >> result_local/proposed.csv 2>> log 
 	    done
     done
 done
