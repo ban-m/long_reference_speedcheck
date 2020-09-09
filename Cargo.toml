@@ -6,7 +6,6 @@ edition = "2018"
 [dependencies]
 dtw = {path = "../dtw"}
 squiggler = {path = "../squiggler"}
-fast5wrapper = {path = "../fast5wrapper"}
 bio = "*"
 rand = "*"
 rayon = "*"
