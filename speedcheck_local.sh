@@ -1,6 +1,14 @@
 #!/bin/bash
+#$ -S /bin/bash
+#$ -N time_check
+#$ -cwd
+#$ -pe smp 24
+#$ -V
 
-## This is a local runner for generating data for figure in paper.
+
+#### ================ Prepare dataset ==================
+
+
 DATA=${PWD}/data
 WO_CHUNKING_QUERYSIZE=500
 QUERY_SIZE=250
@@ -28,14 +36,14 @@ MODELPATH=${PWD}/kmer_models/r9.2_180mv_250bps_6mer/template_median68pA.model
 ## wget https://s3.climb.ac.uk/nanopore/E_coli_K12_1D_R9.2_SpotON_2.tgz
 ## tar -xvf E_coli_K12_1D_R9.2_SpotON_2.tgz
 ## python3 ${PWD}/../score_calculate/scripts/extract.py \ 
-## ${PWD}/E_coli_K12_1D_R9.2_SpotON_2/downloads/pass/ 1000 100000 ${QUERIES}/events.json
+## ${PWD}/E_coli_K12_1D_R9.2_SpotON_2/downloads/pass/ 1200 ${QUERIES}/events.json
 ## ```
 ## It requires ONT's fast5 API packages.
 QUERY=${DATA}/events.json
 if ! [ -e ${QUERY} ]
 then
-    wget https://mlab.cb.k.u-tokyo.ac.jp/~ban-m/read_until_paper/events.json.gz -O ${QUERY}.gz
-    gunzip ${QUERY}.gz
+    wget https://mlab.cb.k.u-tokyo.ac.jp/~ban-m/read_until_paper/events.json.xz -O ${QUERY}.xz
+    unxz ${QUERY}.xz
 fi
 
 ## Download reads and SAM File. Mapping from query reads -> ECOLIREF.
@@ -45,11 +53,14 @@ if ! [ -e ${READS} ]
 then
     wget https://s3.climb.ac.uk/nanopore/E_coli_K12_1D_R9.2_SpotON_2.pass.fasta -O ${READS}
 fi
+
 if ! [ -e ${SAM} ]
 then
     minimap2 -a -x map-ont ${ECOLIREF} ${READS} > ${SAM}
 fi
 
+
+##### ==================== RUN ==========================
 
 set -eu
 ### baseline implimentation
@@ -57,7 +68,6 @@ set -eu
 echo "refsize,bandwidth,time,power" > result_local/baseline_sub_without_chunking.csv
 cargo run --release --bin speedcheck  -- $SAM $QUERY $MODELPATH $ECOLIREF $REFERENCE_SIZE $WO_CHUNKING_QUERYSIZE 0 0 \
       >> result_local/baseline_sub_without_chunking.csv 2> log
-
 ### Baseline(Sub dynamic time warping with chunking)
 echo "refsize,bandwidth,time,power" > result_local/baseline_sub_with_chunking.csv
 for power in $(seq 35 1 40)

@@ -7,3 +7,5 @@ target/
 !.gitignore
 data/
 kmer_models/
+result_local/
+log
