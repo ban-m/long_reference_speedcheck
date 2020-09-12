@@ -63,16 +63,16 @@ fi
 ##### ==================== RUN ==========================
 
 set -eu
+mkdir -p result_local/
 ### baseline implimentation
 ### Baseline(Sub dynamic time warping without chunking)
 echo "refsize,bandwidth,time,power" > result_local/baseline_sub_without_chunking.csv
-cargo run --release --bin speedcheck  -- $SAM $QUERY $MODELPATH $ECOLIREF $REFERENCE_SIZE $WO_CHUNKING_QUERYSIZE 0 0 \
-      >> result_local/baseline_sub_without_chunking.csv 2> log
+cargo run --release --bin speedcheck  -- $SAM $QUERY $MODELPATH $ECOLIREF $REFERENCE_SIZE $WO_CHUNKING_QUERYSIZE 0 0 >> result_local/baseline_sub_without_chunking.csv 2> log
 ### Baseline(Sub dynamic time warping with chunking)
 echo "refsize,bandwidth,time,power" > result_local/baseline_sub_with_chunking.csv
 for power in $(seq 35 1 40)
 do
-    cargo run --release --bin speedcheck -- ${SAM} $QUERY $MODELPATH $ECOLIREF $REFERENCE_SIZE $QUERY_SIZE \
+    cargo run --release --bin speedcheck -- $SAM $QUERY $MODELPATH $ECOLIREF $REFERENCE_SIZE $QUERY_SIZE \
           0 ${power} >> result_local/baseline_sub_with_chunking.csv 2> log 
 done
 
@@ -111,7 +111,7 @@ for power in $(seq 35 1 40)
 do
     for bandwidth in $(seq 11 5 91)
     do
-        cargo run --release --bin speedcheck $QUERIES $MODELPATH $ECOLIREF $REFERENCE_SIZE $QUERY_SIZE ${bandwidth} ${power} >>result_local/baseline_sakoechiba_with_chunking.csv 2>> log
+        cargo run --release --bin speedcheck $SAM $QUERY $MODELPATH $ECOLIREF $REFERENCE_SIZE $QUERY_SIZE ${bandwidth} ${power} >>result_local/baseline_sakoechiba_with_chunking.csv 2>> log
     done
 done
 
@@ -128,10 +128,10 @@ do
 	for refsize in 2 4 8 16 32 64 128 256
 	do
 	    root="./data/"${refsize}"KScouting"
-	    cargo run --release --bin speedcheck  -- $QUERIES $MODELPATH $ECOLIREF ${refsize} $QUERY_SIZE 0 0 >> result_local/baseline_sub_wo_chunking_refsize_varies.csv
+	    cargo run --release --bin speedcheck  -- $SAM $QUERY $MODELPATH $ECOLIREF ${refsize} $QUERY_SIZE 0 0 >> result_local/baseline_sub_wo_chunking_refsize_varies.csv
 	    for power in $(seq 35 1 38)
 	    do
-		cargo run --release --bin scouting_threshold -- $QUERIES $MODELPATH $ECOLIREF ${refsize} $QUERY_SIZE ${num_scouts} ${num_packs} ${power} ${root}${num_scouts}${num_packs}${power}Positive.dat ${root}${num_scouts}${num_packs}${power}Negative.dat >> result_local/proposed_refsize_varies.csv 2>> log 
+		    cargo run --release --bin scouting_threshold -- $SAM $QUERY $MODELPATH $ECOLIREF ${refsize} $QUERY_SIZE ${num_scouts} ${num_packs} ${power} ${root}${num_scouts}${num_packs}${power}Positive.dat ${root}${num_scouts}${num_packs}${power}Negative.dat >> result_local/proposed_refsize_varies.csv 2>> log 
 	    done
 	done
     done

@@ -54,6 +54,7 @@ pub fn speedcheck(
             elapsed_time(
                 &query, location, temp, querysize, refsize, power, mode, is_hill, threshold,
             )
+            .0
         })
         .collect();
     let (duration, num): (_, u32) = res
@@ -75,12 +76,12 @@ pub fn elapsed_time(
     mode: dtw::Mode,
     is_hill: bool,
     threshold: &Option<f32>,
-) -> Option<Duration> {
+) -> (Option<Duration>, Option<f32>) {
     if query.len() < 50 + 2 * querysize
         || location + refsize > 200 + reference.len()
         || location < 200
     {
-        return None;
+        return (None, None);
     } else {
         let metric = if is_hill { "hill" } else { "normal" };
         let query = query[50..50 + 2 * querysize].to_vec();
@@ -97,7 +98,6 @@ pub fn elapsed_time(
             threshold,
         );
         let time = now.elapsed();
-        eprint!("{:?}", res);
-        Some(time)
+        (Some(time), res)
     }
 }

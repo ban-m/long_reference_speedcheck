@@ -1,23 +1,9 @@
 const IS_HILL: bool = true;
 use long_reference_speedcheck::*;
-use serde::*;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct DataSet {
-    records: Vec<Data>,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Data {
-    id: String,
-    starts: Vec<usize>,
-    lengths: Vec<usize>,
-    means: Vec<f32>,
-    stdvs: Vec<f32>,
-}
-
 fn main() {
     let args: Vec<_> = std::env::args().collect();
     let sam: HashMap<_, _> = BufReader::new(File::open(&args[1]).unwrap())
@@ -36,12 +22,12 @@ fn main() {
             }
         })
         .collect();
-    let rdr = BufReader::new(File::open(&args[2]).unwrap());
-    let queries: DataSet = serde_json::de::from_reader(rdr).unwrap();
+    let queries: DataSet = DataSet::from_json(&args[2]).unwrap();
     let queries: Vec<_> = queries
         .records
         .into_iter()
         .filter_map(|data| sam.get(&data.id).map(|&pos| (data.means, pos)))
+        .filter(|(query, _)| query.len() > 1100)
         .take(700)
         .collect();
     let model = squiggler::Squiggler::new(&Path::new(&args[3])).unwrap();

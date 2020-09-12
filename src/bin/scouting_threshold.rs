@@ -1,21 +1,11 @@
 const IS_HILL: bool = true;
 use histogram_minimizer::minimize;
 use long_reference_speedcheck::*;
-use serde::*;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::path::Path;
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct DataSet {
-    records: Vec<Data>,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Data {
-    id: String,
-    means: Vec<f32>,
-}
-use std::collections::HashMap;
 fn main() {
     let args: Vec<_> = std::env::args().collect();
     let sam: HashMap<_, _> = BufReader::new(File::open(&args[1]).unwrap())
@@ -34,13 +24,13 @@ fn main() {
             }
         })
         .collect();
-    let rdr = BufReader::new(File::open(&args[2]).unwrap());
-    let dataset: DataSet = serde_json::de::from_reader(rdr).unwrap();
+    let dataset = long_reference_speedcheck::DataSet::from_json(&args[2]).unwrap();
     let (mut queries, mut training) = (vec![], vec![]);
     for (idx, q) in dataset
         .records
         .into_iter()
         .filter_map(|data| sam.get(&data.id).map(|&pos| (data.means, pos)))
+        .filter(|(query, _)| query.len() > 1100)
         .enumerate()
     {
         if idx < 700 {
@@ -49,8 +39,8 @@ fn main() {
             training.push(q);
         }
     }
-    let model = squiggler::Squiggler::new(&Path::new(&args[2])).unwrap();
-    let (temp, rev) = setup_template_complement(&Path::new(&args[3])).unwrap();
+    let model = squiggler::Squiggler::new(&Path::new(&args[3])).unwrap();
+    let (temp, rev) = setup_template_complement(&Path::new(&args[4])).unwrap();
     let temp: Vec<f32> = model
         .get_signal_from_fasta(&temp)
         .into_iter()
@@ -63,26 +53,28 @@ fn main() {
         .map(|e| e.2)
         .collect();
     let rev = dtw::normalize(&rev, dtw::NormalizeType::Z);
-    let refsize: usize = args[4].parse::<usize>().map(|e| e * 1000).expect("refsize");
-    let querysize: usize = args[5].parse().expect("querysize");
-    let num_scouts: usize = args[6].parse().expect("scouts");
-    let num_packs: usize = args[7].parse().expect("packs");
-    let power: usize = args[8].parse().expect("power");
+    let refsize: usize = args[5].parse::<usize>().map(|e| e * 1000).expect("refsize");
+    let querysize: usize = args[6].parse().expect("querysize");
+    let num_scouts: usize = args[7].parse().expect("scouts");
+    let num_packs: usize = args[8].parse().expect("packs");
+    let power: usize = args[9].parse().expect("power");
     let mode = dtw::Mode::Scouting(num_scouts, num_packs);
     let metric = if IS_HILL { "hill" } else { "normal" };
     let cdata: Vec<_> = training
         .iter()
-        .take(1000)
+        .filter(|&(_, pos)| (pos + refsize) - 200 < temp.len() && pos > &200)
         .filter_map(|&(ref query, pos)| {
             let query = &query[50..50 + 2 * querysize];
             let refr = &temp[pos - 200..pos + refsize - 200];
             dtw::utils::dtw_wrapper(query, refr, &mode, metric, &None, &None)
         })
+        .take(1000)
         .map(|x| x as f64)
         .collect();
     let udata: Vec<_> = training
         .iter()
         .take(1000)
+        .filter(|&(_, pos)| (pos + refsize) - 200 < temp.len() && pos > &200)
         .filter_map(|&(ref query, pos)| {
             let query = &query[50..50 + 2 * querysize];
             let refr = &rev[pos - 200..pos + refsize - 200];

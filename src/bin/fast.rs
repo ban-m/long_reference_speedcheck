@@ -27,6 +27,7 @@ fn main() {
         .records
         .into_iter()
         .filter_map(|data| sam.get(&data.id).map(|&pos| (data.means, pos)))
+        .filter(|(query, _)| query.len() > 1100)
         .take(700)
         .collect();
     let model = squiggler::Squiggler::new(&Path::new(&args[3])).unwrap();

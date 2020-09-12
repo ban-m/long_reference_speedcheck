@@ -5,7 +5,6 @@ use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::path::Path;
-
 fn main() {
     let args: Vec<_> = std::env::args().collect();
     let sam: HashMap<_, _> = BufReader::new(File::open(&args[1]).unwrap())
@@ -29,6 +28,7 @@ fn main() {
         .records
         .into_iter()
         .filter_map(|data| sam.get(&data.id).map(|&pos| (data.means, pos)))
+        .filter(|(query, _)| query.len() > 1100)
         .take(700)
         .collect();
     let model = squiggler::Squiggler::new(&Path::new(&args[3])).unwrap();
